@@ -1,0 +1,40 @@
+# Dependencies
+node_modules/
+.npm
+.pnpm-debug.log*
+
+# Next.js
+.next/
+out/
+
+# Production
+build/
+dist/
+
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Claude
+.claude/
+
+# Other
+nul
