@@ -66,9 +66,11 @@ function CircularTimer({
   const radius = size / 2;
   const center = size / 2;
   
-  // Use precise time if available, otherwise fall back to timeLeft
+  // timeLeft는 이미 초 단위, preciseTimeLeft는 밀리초 단위
+  // 더 정확한 애니메이션을 위해 preciseTimeLeft 사용 (밀리초를 초로 변환)
   const actualTimeLeft = preciseTimeLeft !== undefined ? preciseTimeLeft / 1000 : timeLeft;
-  const progress = totalTime > 0 ? Math.max(0, Math.min(1, (totalTime - actualTimeLeft) / totalTime)) : 0;
+  // 게이지는 남은 시간을 기준으로 계산 (1에서 남은 시간 비율을 빼면 경과된 시간 비율)
+  const progress = totalTime > 0 ? Math.max(0, Math.min(1, 1 - (actualTimeLeft / totalTime))) : 0;
   
   // Calculate the end angle for the remaining time (starts from top, goes clockwise)
   const angle = progress * 360;
@@ -171,6 +173,7 @@ export default function TimerApp() {
   const [showSettings, setShowSettings] = useState(false);
   const [initialTime, setInitialTime] = useState(0);
   const [activeTab, setActiveTab] = useState<'timer' | 'stats' | 'settings'>('timer');
+  const [preciseTimeLeft, setPreciseTimeLeft] = useState(0); // 밀리초 단위 시간
 
   // Refs
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -270,15 +273,17 @@ export default function TimerApp() {
   // Timer Logic with millisecond precision
   useEffect(() => {
     if (isRunning && timeLeft > 0) {
-      const startTime = Date.now();
-      preciseTimeRef.current = timeLeft * 1000; // Convert to milliseconds
+      // 타이머 시작 시간을 현재 시간으로 설정
+      sessionStartTimeRef.current = Date.now();
+      const initialTimeMs = timeLeft * 1000; // 초기 시간을 밀리초로 저장
       
       const updateTimer = () => {
-        const elapsed = Date.now() - startTime;
-        const remaining = Math.max(0, preciseTimeRef.current - elapsed);
+        const elapsed = Date.now() - sessionStartTimeRef.current;
+        const remaining = Math.max(0, initialTimeMs - elapsed);
         
         if (remaining <= 0) {
           preciseTimeRef.current = 0;
+          setPreciseTimeLeft(0);
           setTimeLeft(0);
           setIsRunning(false);
           handleTimerComplete();
@@ -286,14 +291,16 @@ export default function TimerApp() {
             clearInterval(intervalRef.current);
           }
         } else {
-          // Update precise time for smooth gauge animation
+          // Update precise time for smooth gauge animation (남은 시간을 밀리초로 저장)
           preciseTimeRef.current = remaining;
-          // Update display time (rounded to nearest second)
-          setTimeLeft(Math.ceil(remaining / 1000));
+          setPreciseTimeLeft(remaining); // 밀리초 state 업데이트
+          // Update display time (remaining은 밀리초 단위이므로 1000으로 나누어 초 단위로 변환)
+          const secondsLeft = Math.ceil(remaining / 1000);
+          setTimeLeft(secondsLeft);
         }
       };
       
-      intervalRef.current = setInterval(updateTimer, 8); // ~120fps for ultra smooth animation
+      intervalRef.current = setInterval(updateTimer, 16); // ~60fps for smooth animation
     } else if (intervalRef.current) {
       clearInterval(intervalRef.current);
     }
@@ -303,7 +310,7 @@ export default function TimerApp() {
         clearInterval(intervalRef.current);
       }
     };
-  }, [isRunning, timeLeft, handleTimerComplete]);
+  }, [isRunning, handleTimerComplete]); // timeLeft 의존성 제거
 
   // Timer Control Functions
   const startStudyTimer = () => {
@@ -311,8 +318,8 @@ export default function TimerApp() {
     setMode('study');
     setTimeLeft(time);
     setInitialTime(time);
-    sessionStartTimeRef.current = Date.now();
     preciseTimeRef.current = time * 1000;
+    setPreciseTimeLeft(time * 1000);
     setIsRunning(true);
   };
 
@@ -321,8 +328,8 @@ export default function TimerApp() {
     setMode('break');
     setTimeLeft(time);
     setInitialTime(time);
-    sessionStartTimeRef.current = Date.now();
     preciseTimeRef.current = time * 1000;
+    setPreciseTimeLeft(time * 1000);
     setIsRunning(true);
   };
 
@@ -331,8 +338,8 @@ export default function TimerApp() {
     setMode('manual');
     setTimeLeft(time);
     setInitialTime(time);
-    sessionStartTimeRef.current = Date.now();
     preciseTimeRef.current = time * 1000;
+    setPreciseTimeLeft(time * 1000);
     setIsRunning(true);
   };
 
@@ -342,6 +349,7 @@ export default function TimerApp() {
     }
     // preciseTimeRef.current is already updated in the timer loop
     setTimeLeft(Math.ceil(preciseTimeRef.current / 1000));
+    setPreciseTimeLeft(preciseTimeRef.current);
     setIsRunning(false);
   };
 
@@ -353,21 +361,37 @@ export default function TimerApp() {
     setTimeLeft(0);
     setInitialTime(0);
     preciseTimeRef.current = 0;
+    setPreciseTimeLeft(0);
     setMode('manual');
   };
 
   // Utility Functions
   const formatTime = (totalSeconds: number) => {
     const mins = Math.floor(totalSeconds / 60);
-    const secs = totalSeconds % 60;
+    const secs = Math.floor(totalSeconds % 60);
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
+  const formatTimeWithMilliseconds = (totalMilliseconds: number) => {
+    const totalSeconds = totalMilliseconds / 1000;
+    const mins = Math.floor(totalSeconds / 60);
+    const secs = Math.floor(totalSeconds % 60);
+    const millisecs = Math.floor((totalMilliseconds % 1000) / 10); // 2자리 밀리초
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}:${millisecs.toString().padStart(2, '0')}`;
+  };
+
   const getDisplayTime = () => {
-    if (timeLeft > 0) return formatTime(timeLeft);
+    if (timeLeft > 0) {
+      // 타이머가 실행 중일 때는 밀리초까지 표시
+      if (isRunning && preciseTimeLeft > 0) {
+        return formatTimeWithMilliseconds(preciseTimeLeft);
+      }
+      // 정지 상태일 때는 초 단위만 표시
+      return formatTime(timeLeft);
+    }
     if (mode === 'study') return formatTime(studyMinutes * 60);
     if (mode === 'break') return formatTime(breakMinutes * 60);
-    return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+    return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}:00`;
   };
 
   const getBackgroundClass = () => {
@@ -425,7 +449,8 @@ export default function TimerApp() {
             {/* Compact Header */}
             <div className="pt-6 pb-4 px-4">
               <div className="max-w-sm mx-auto text-center">
-                <h1 className="text-2xl font-bold text-white">BravoFocusTimer</h1>
+                <h1 className="text-2xl font-bold text-white mb-1">{getModeTitle()}</h1>
+                <div className="text-white/60 text-sm">Stay focused</div>
               </div>
             </div>
 
@@ -435,7 +460,7 @@ export default function TimerApp() {
                 
                 {!isRunning && timeLeft === 0 && mode === 'manual' ? (
                   // Timer Selection Mode - Unified Interface
-                  <div className="bg-white/10 backdrop-blur-xl rounded-2xl p-6 border border-white/20 space-y-6 mb-8">
+                  <div className="bg-white/10 backdrop-blur-xl rounded-2xl p-6 border border-white/20 space-y-6">
                     {/* Quick Select Buttons */}
                     <div className="grid grid-cols-4 gap-3">
                       {[5, 10, 15, 20, 25, 30, 45, 60].map((mins) => (
@@ -447,8 +472,8 @@ export default function TimerApp() {
                             const time = mins * 60;
                             setTimeLeft(time);
                             setInitialTime(time);
-                            sessionStartTimeRef.current = Date.now();
                             preciseTimeRef.current = time * 1000;
+                            setPreciseTimeLeft(time * 1000);
                             setIsRunning(true);
                           }}
                           className="bg-white/20 hover:bg-white/30 text-white font-bold py-4 px-2 rounded-xl transition-all duration-200 text-lg backdrop-blur-sm border border-white/30 hover:scale-105"
@@ -498,8 +523,8 @@ export default function TimerApp() {
                           if (time > 0) {
                             setTimeLeft(time);
                             setInitialTime(time);
-                            sessionStartTimeRef.current = Date.now();
                             preciseTimeRef.current = time * 1000;
+                            setPreciseTimeLeft(time * 1000);
                             setIsRunning(true);
                           }
                         }}
@@ -520,7 +545,7 @@ export default function TimerApp() {
                         totalTime={initialTime}
                         size={300}
                         mode={mode}
-                        preciseTimeLeft={preciseTimeRef.current}
+                        preciseTimeLeft={preciseTimeLeft}
                       />
                       
                       {/* Time Display in Center */}
@@ -541,7 +566,7 @@ export default function TimerApp() {
                 {/* Timer Controls */}
                 {!isRunning && timeLeft === 0 ? (
                   // Start Options
-                  <div className="space-y-14">
+                  <div className="space-y-10">
                     {/* Quick Start Buttons */}
                     <div className="grid grid-cols-2 gap-3">
                       <button
