@@ -419,7 +419,7 @@ export default function TimerApp() {
   const getModeTitle = () => {
     if (mode === 'study') return 'Study Time';
     if (mode === 'break') return 'Break Time';
-    return 'Timer';
+    return 'BravoFocusTimer';
   };
 
   const getModeIcon = () => {
@@ -450,7 +450,6 @@ export default function TimerApp() {
             <div className="pt-6 pb-4 px-4">
               <div className="max-w-sm mx-auto text-center">
                 <h1 className="text-2xl font-bold text-white mb-1">{getModeTitle()}</h1>
-                <div className="text-white/60 text-sm">Stay focused</div>
               </div>
             </div>
 
@@ -564,9 +563,10 @@ export default function TimerApp() {
                 )}
 
                 {/* Timer Controls */}
+                <div className="mt-8">
                 {!isRunning && timeLeft === 0 ? (
                   // Start Options
-                  <div className="space-y-10">
+                  <div className="space-y-12">
                     {/* Quick Start Buttons */}
                     <div className="grid grid-cols-2 gap-3">
                       <button
@@ -617,6 +617,7 @@ export default function TimerApp() {
                     </button>
                   </div>
                 )}
+                </div>
               </div>
             </div>
           </div>

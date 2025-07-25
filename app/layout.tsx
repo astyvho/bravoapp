@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'BravoFocusTimer',
+  title: 'BravoFocusTime',
   description: 'Simple countdown timer with gamification',
 };
 
